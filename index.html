@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跨国财税政策可视化交互矩阵 (Excel 架构版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .excel-grid th, .excel-grid td { border: 1px solid #cbd5e1; }
+        .excel-row-num { background-color: #f1f5f9; color: #475569; text-align: center; font-size: 0.75rem; width: 40px; font-weight: 600; }
+        .tab-active { background-color: #0f766e; color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800">
+    <div class="max-w-[1600px] mx-auto p-4 md:p-6">
+        <!-- 头部面板 -->
+        <header class="mb-6 bg-gradient-to-r from-teal-800 to-cyan-900 text-white p-6 rounded-xl shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight">全球财税政策可视化交互矩阵</h1>
+                <p class="text-teal-100 text-xs md:text-sm mt-2 font-light">基于“三柱十一级”财税合规矩阵构建的交互系统。支持一键导出、横向多国对比、全文检索及政策变更条件高亮。</p>
+            </div>
+            <!-- 工具栏 -->
+            <div class="flex flex-wrap gap-2 self-start md:self-center">
+                <button onclick="toggleComparisonMode()" id="btn-compare" class="px-5 py-2 rounded text-sm font-semibold transition-all duration-150 bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    <span>📊 横向对比模式</span>
+                </button>
+                <button onclick="exportToCSV()" class="px-5 py-2 rounded text-sm font-semibold transition-all duration-150 bg-teal-700 hover:bg-teal-800 text-white flex items-center gap-1.5 shadow">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    <span>导出当前数据 (CSV)</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 国家/地区工作簿选项卡 (类似于 Excel 工作薄 Tab) -->
+        <div id="country-tabs-container" class="flex flex-wrap gap-2 mb-4 bg-white p-3 rounded-lg shadow-sm border border-slate-200 transition-opacity">
+            <span class="text-sm font-bold text-slate-500 self-center mr-2">选择法域工作簿:</span>
+            <button onclick="switchCountry('sg')" id="btn-sg" class="px-5 py-2 rounded text-sm font-semibold transition-all duration-150 tab-active">新加坡 (Singapore)</button>
+            <button onclick="switchCountry('us')" id="btn-us" class="px-5 py-2 rounded text-sm font-semibold transition-all duration-150 bg-slate-100 text-slate-700 hover:bg-slate-200">美国 (United States)</button>
+            <button onclick="switchCountry('hk')" id="btn-hk" class="px-5 py-2 rounded text-sm font-semibold transition-all duration-150 bg-slate-100 text-slate-700 hover:bg-slate-200">香港 (Hong Kong SAR)</button>
+            <button onclick="switchCountry('dk')" id="btn-dk" class="px-5 py-2 rounded text-sm font-semibold transition-all duration-150 bg-slate-100 text-slate-700 hover:bg-slate-200">丹麦 (Denmark)</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+            <!-- 左侧边栏：三柱十一级政策导航树 -->
+            <div id="sidebar-container" class="lg:col-span-1 bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4 transition-all">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">政策导航树</h2>
+                
+                <!-- 经济政策支柱 -->
+                <div>
+                    <div class="font-bold text-slate-900 bg-slate-100 px-3 py-2 rounded text-xs md:text-sm border-l-4 border-teal-600">
+                        经济制度与经济政策框架
+                    </div>
+                    <div class="pl-2 mt-1 space-y-1">
+                        <button onclick="selectCategory('1-1')" id="cat-1-1" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-teal-800 font-medium bg-teal-50">大方向经济制度与政策</button>
+                        <button onclick="selectCategory('1-2')" id="cat-1-2" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">公司相关法规与政策</button>
+                        <button onclick="selectCategory('1-3')" id="cat-1-3" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">国际协定</button>
+                        <button onclick="selectCategory('1-4')" id="cat-1-4" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">其他</button>
+                        <button onclick="selectCategory('1-5')" id="cat-1-5" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">近期经济政策变动</button>
+                    </div>
+                </div>
+
+                <!-- 会计政策支柱 -->
+                <div>
+                    <div class="font-bold text-slate-900 bg-slate-100 px-3 py-2 rounded text-xs md:text-sm border-l-4 border-cyan-600">
+                        会计制度与政策
+                    </div>
+                    <div class="pl-2 mt-1 space-y-1">
+                        <button onclick="selectCategory('2-1')" id="cat-2-1" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">会计准则</button>
+                        <button onclick="selectCategory('2-2')" id="cat-2-2" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">会计法规</button>
+                        <button onclick="selectCategory('2-3')" id="cat-2-3" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">近期会计制度与政策动向</button>
+                    </div>
+                </div>
+
+                <!-- 税务政策支柱 -->
+                <div>
+                    <div class="font-bold text-slate-900 bg-slate-100 px-3 py-2 rounded text-xs md:text-sm border-l-4 border-emerald-600">
+                        税务制度与政策
+                    </div>
+                    <div class="pl-2 mt-1 space-y-1">
+                        <button onclick="selectCategory('3-1')" id="cat-3-1" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">税法</button>
+                        <button onclick="selectCategory('3-2')" id="cat-3-2" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">税收协定</button>
+                        <button onclick="selectCategory('3-3')" id="cat-3-3" class="w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50">近期税务改革动向</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：模拟 Excel 主体数据网格 -->
+            <div id="main-content-container" class="lg:col-span-3 flex flex-col bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden transition-all">
+                <!-- Excel 公式编辑与搜索栏 -->
+                <div class="bg-slate-50 border-b border-slate-200 p-2.5 text-xs flex flex-wrap gap-4 items-center justify-between">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button onclick="toggleSidebar()" id="btn-toggle-sidebar" class="p-1.5 text-slate-500 hover:bg-slate-200 rounded flex items-center justify-center transition-colors" title="折叠/展开侧边导航树">
+                            <svg id="sidebar-toggle-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                        </button>
+                        <span class="font-mono bg-teal-800 text-white px-2 py-0.5 rounded font-bold" id="cell-indicator">A2</span>
+                        <div class="h-4 w-px bg-slate-300"></div>
+                        <span class="text-slate-500 font-medium">路径:</span>
+                        <span class="font-bold text-teal-800 mr-2" id="formula-bar">新加坡 > 大方向经济制度与政策</span>
+                    </div>
+                    <!-- 全局搜索过滤框 -->
+                    <div class="relative flex items-center">
+                        <input type="text" id="search-input" placeholder="在当前科目下检索 (高亮过滤)..." oninput="handleSearch()" class="px-3 py-1.5 pl-8 border border-slate-300 rounded text-xs w-64 focus:outline-none focus:ring-1 focus:ring-teal-700">
+                        <svg class="w-4 h-4 text-slate-400 absolute left-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                </div>
+
+                <!-- 数据呈现容器 (标准单国 Table 或 多国横向对比 Grid) -->
+                <div id="data-container" class="overflow-x-auto flex-grow min-h-[400px]">
+                    <!-- 标准表格模式 -->
+                    <table id="standard-table" class="w-full border-collapse text-left text-xs md:text-sm excel-grid">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-500 text-xs font-mono">
+                                <th class="excel-row-num"></th>
+                                <th class="p-2 font-semibold w-24 text-center cursor-pointer hover:bg-slate-200 select-none transition-colors" onclick="handleSort('code')">
+                                    代码 <span id="sort-icon-code" class="text-[10px] text-teal-700"></span>
+                                </th>
+                                <th class="p-2 font-semibold w-48 cursor-pointer hover:bg-slate-200 select-none transition-colors" onclick="handleSort('item')">
+                                    政策科目 <span id="sort-icon-item" class="text-[10px] text-teal-700"></span>
+                                </th>
+                                <th class="p-2 font-semibold">合规性描述与核心实务摘要</th>
+                                <th class="p-2 font-semibold w-56 text-center">原始数据源与便捷分享</th>
+                            </tr>
+                            <tr class="bg-slate-50 text-slate-700 text-xs font-bold border-b border-slate-300">
+                                <td class="excel-row-num">1</td>
+                                <td class="p-2 text-center">Code</td>
+                                <td class="p-2">Subject</td>
+                                <td class="p-2">Policy Summary & Compliance Provisions</td>
+                                <td class="p-2 text-center">Actions & Sources</td>
+                            </tr>
+                        </thead>
+                        <tbody id="excel-data-rows">
+                            <!-- JS 动态注入行 -->
+                        </tbody>
+                    </table>
+
+                    <!-- 对比模式面板 -->
+                    <div id="comparison-view" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 p-4 bg-slate-50 border-t border-slate-200 overflow-y-auto max-h-[600px]">
+                        <!-- 对比列由JS注入 -->
+                    </div>
+                </div>
+
+                <!-- 底部状态栏 -->
+                <div class="bg-slate-50 border-t border-slate-200 px-4 py-2.5 text-xs flex justify-between items-center text-slate-500">
+                    <div>就绪。状态已通过本地 localStorage 自动同步。数据已参照 2025/2026 各地最新法规库。</div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="font-medium text-slate-600">系统连接正常</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 内置完整的四国财税数据库与交互控制逻辑 -->
+    <script>
+        const database = {
+            sg: {
+                name: "新加坡 (Singapore)",
+                "1-1": [
+                    { code: "SG-1-1-1", item: "经济体制与货币管制", desc: "- 自由商港环境：新加坡建立在高度开放、透明和亲商的自由港基础之上，高度依赖外贸。\\n- 零外汇限制：其金融业及银行业极其成熟，不设任何外汇或资本管制，资金可自由无障碍汇兑。", linkText: "Deloitte 投资气候指南", link: "http://www.iberglobal.com/files/2018-2/singapur_deloitte_guide.pdf" }
+                ],
+                "1-2": [
+                    { code: "SG-1-2-1", item: "法定登记与信息披露机关", desc: "- 核心监督部门：新加坡会计与企业管制局（ACRA）是负责新加坡企业设立登记、财务报告披露及执业会计师资质管理的法定最高机关。\\n- 企业日常合规：ACRA 对公司及合伙企业日常法定义务和披露履行质量实施统一监督与行政管制。", linkText: "ACRA 官方管理大纲", link: "https://www.acra.gov.sg/about-us/overview/" },
+                    { code: "SG-1-2-2", item: "公司财务变更强制申报要求", desc: "- 年结日（FYE）变更：依据新加坡《公司法》和 IRAS 规定，本地注册公司或外国分支机构若计划更改其财务年度年结日，必须履行信息变更申报。\\n- 电子呈递渠道：所有变更登记与年度法定事项必须通过 ACRA 旗下的 BizFile 平台提交申报办理。", linkText: "IRAS 公司信息更新规定", link: "https://www.iras.gov.sg/taxes/goods-services-tax-(gst)/other-services/notifying-iras-of-changes" }
+                ],
+                "1-3": [
+                    { code: "SG-1-3-1", item: "多边与双边自贸协定", desc: "- 国际多边成员：作为 WTO、东盟（ASEAN）及亚太经合组织（APEC）的骨干成员。\\n- 全球双边自贸：建立辐射全球的自由贸易协定，在法治化轨道上提供零关税通关待遇与高标准的跨国投资保障机制。", linkText: "IRAS 国际自贸协定库", link: "https://www.iras.gov.sg/" }
+                ],
+                "1-4": [
+                    { code: "SG-1-4-1", item: "非营利组织及慈善准则", desc: "- 慈善专属准则：慈善和合作社局（Office of the Commissioner of Charities）制定了《慈善机构会计准则》（Charities Accounting Standard）。\\n- 社会资金监督：由 ACRA 协助在其公共披露系统实施年度财务报送，从而对符合条件的慈善机构及社团进行有效监管。", linkText: "ACRA 财务披露标准", link: "https://www.acra.gov.sg/regulations/accounting-standards-financial-reporting-surveillance/accounting-standards/" }
+                ],
+                "1-5": [
+                    { code: "SG-1-5-1", item: "2026 财政预算案与AI转型", desc: "- 确立国家人工智能战略：总理兼财政部长黄循财于2026年2月预算案宣布推行“国家人工智能战略”，加速关键支柱行业深度转型。\\n- 智能化技术资助：扩大生产力解决方案补助金（PSG）资助，并在企业创新计划（EIS）下提供 AI 相关特定超级扣除， qualifying 支出限额 5 万新元。", linkText: "新加坡 Budget 2026 官网", link: "https://www.gov.sg/budget2026/" },
+                    { code: "SG-1-5-2", item: "2026 中东局势追加商业援助", desc: "- 追加定向民生纾困：2026年4月7日萧美琴宣布追加定向支持，包含 CDC 消费券加派、平台工作者与司机专属现金补助。\\n- 退税红利延长：强化 YA 2026 企业所得税退税率至 50% 并调高退税上限，以对冲地缘政治导致的物流与供应链压力。", linkText: "PwC 2026 预算案深度解析", link: "https://www.pwc.com/sg/en/publications/singapore-budget.html" }
+                ],
+                "2-1": [
+                    { code: "SG-2-1-1", item: "通用财务报告准则 SFRS(I)", desc: "- 国际准则高度趋同：会计准则理事会（ASC）制定等同于 IFRS 的新加坡财务报告准则（国际）[SFRS(I)]。\\n- 双重遵循声明：适用于公众和大型跨国公司，允许企业在披露财务报表时同时出具符合 SFRS(I) 与 IFRS 的声明。", linkText: "ASC 2026 SFRS(I) 规范", link: "https://asc.acra.gov.sg/singapore-financial-reporting-standards-international/effective-for-annual-reporting-period-beginning-on-1-january-2026/" },
+                    { code: "SG-2-1-2", item: "小型实体财务报告准则", desc: "- 简化财务框架：针对无公共受托责任的小型公司，ASC 提供了基于 IFRS for SMEs 开发的《小型实体财务报告准则》。\\n- 合规成本优化：大幅削减公允价值评估与复杂的备忘录披露，显著优化中小型企业的记账合规成本。", linkText: "小型实体 SFRS 专区", link: "https://asc.acra.gov.sg/singapore-financial-reporting-standards-for-small-entities/" }
+                ],
+                "2-2": [
+                    { code: "SG-2-2-1", item: "《公司法》法定审计与报送时间表", desc: "- 法定审计合规：除年营收及资产低于1,000万新元且无外部公共受托义务的小型私人公司外，所有公司须编制年度财务报表。\\n- 审计与申报时效：必须在财政年度结束后的 6 个月内完成执业注册会计师（CPA）审计，并通过 BizFile 系统向 ACRA 提交年报。", linkText: "Bluebox 会计合规指南", link: "https://bluebox.sg/singapore-financial-reporting-standards-expanded/" }
+                ],
+                "2-3": [
+                    { code: "SG-2-3-1", item: "财务列报重分类重大调整", desc: "- 小型准则第三版：ASC 颁布第三版《小型实体财务报告准则》，自 2027 年 1 月 1 日起的报告期强制执行。\\n- 损益表结构重塑：全新的 SFRS(I) 18 也将于 2027 年生效，引入 MPMs（管理层定义的业绩衡量指标）并重构损益表分类，将对母子公司合并报表流程产生结构性影响。", linkText: "ASC 最新会计修正案", link: "https://asc.acra.gov.sg/singapore-financial-reporting-standards-international/archives/changes-effective-for-annual-reporting-periods-beginning-after-1-january-2025/" }
+                ],
+                "3-1": [
+                    { code: "SG-3-1-1", item: "所得税率、免税政策与单层税制", desc: "- 统一所得税率：新加坡实行 17% 的单一企业所得税（CIT）法定税率，新设实体可享受丰厚的部分免税优惠。\\n- One-Tier 单层税制：公司分配派给其股东的分红股息免于征收任何个人所得税与代扣所得税，彻底消除重复课税。", linkText: "PwC 新加坡公司所得税速览", link: "https://taxsummaries.pwc.com/singapore/corporate/taxes-on-corporate-income" },
+                    { code: "SG-3-1-2", item: "预估应税收入 (ECI) 法定申报要求", desc: "- 预估申报要求：除特定豁免条件外，所有新加坡公司必须在财政年度结束后的 3 个月内提交预估应税收入（ECI）。\\n- 年度企业所得税：年度所得税申报表（Form C/C-S）的法定申报截止期限为每年的 11 月 30 日。", linkText: "IRAS ECI 申报规程", link: "https://www.iras.gov.sg/taxes/corporate-income-tax/estimated-chargeable-income-(eci)-filing" },
+                    { code: "SG-3-1-3", item: "海外资产处置利得税 (Section 10L)", desc: "- 海外处置收益限制：自 2024 年 1 月 1 日起生效 Section 10L，阻断离岸非无形资产及其他资产处置利益流入新加坡时的不合理套税。\\n- 经济实质核减：若企业在新加坡本地无法通过实质性的经济活动测试，其被视为汇入新加坡的处置利得将就地转纳 17% 企业所得税。", linkText: "Hawksford 新加坡税制实务", link: "https://www.hawksford.com/insights-and-guides/taxation-and-accounting-in-singapore" },
+                    { code: "SG-3-1-4", item: "非活跃公司免申报豁免", desc: "- 零业务长期免申：完全未产生实际营业活动、未取得应税收入的公司，可通过 myTax Portal 申请 dormant 长期豁免。\\n- 行政程序降负：获批后可长期免予递交所得税申报表，直至商业活动重新启动。", linkText: "IRAS 非活跃实体合规规程", link: "https://www.iras.gov.sg/taxes/corporate-income-tax/dormant-companies-or-companies-closing-down/dormant-companies" }
+                ],
+                "3-2": [
+                    { code: "SG-3-2-1", item: "避免双重征税协定 (DTA) 减免", desc: "- 全球互免网络：构建了极为广泛的双边及多边避免双重征税协定（DTA）网络。\\n- 优惠代扣税率：利息法定预提税率为 15%，特许权使用费为 10%，股息为 0%，在税收协定项下可申请大幅减按征税。", linkText: "PwC 新加坡 DTA 核心税率表", link: "https://taxsummaries.pwc.com/singapore" }
+                ],
+                "3-3": [
+                    { code: "SG-3-3-1", item: "二支柱最低税法案 (MMT Act 2024)", desc: "- 最低税立法落地：2025 年 1 月 1 日起的报告期，强制执行《多国企业（最低税）法案》（MMT Act 2024）。\\n- MTT与DTT机制：针对全球合并总营收超 7.5 亿欧元的跨国企业，加征 15% 的国内最低补足税（DTT）与跨国最高补足税（MTT），2026年5月启动注册。", linkText: "PwC 跨国二支柱追踪", link: "https://taxsummaries.pwc.com/singapore/corporate/taxes-on-corporate-income" },
+                    { code: "SG-3-3-2", item: "2026 所得税退税红利与优惠延续", desc: "- 定向税务抵减：YA 2026 预算案提供高达 50% 企业所得税退税（上限 40,000 新元），并派发本地合规雇员现金津贴。\\n- 减免期限制延长：将自动 DTDi、FTC 金融中心和 GTP 全球交易商计划等税收免减延长至 2031 年 12 月 31 日。", linkText: "Grant Thornton 2026商业税改分析", link: "https://www.grantthornton.sg/insights/2026-insights/singapore-budget-2026-summary-businesses/" }
+                ]
+            },
+            us: {
+                name: "美国 (United States)",
+                "1-1": [
+                    { code: "US-1-1-1", item: "自由市场制度与宏观财政政策", desc: "- 自由市场特征：作为全球最大技术领先的资本主义混合经济体，具备高度自由化的资本流动属性和极其活跃的证券体系。\\n- 宏观调控：国会财政税收法案、联邦储备系统（Fed）货币政策和财政部条例共同维持金融大盘稳定。", linkText: "Brookings 联邦商业税收评述", link: "https://www.brookings.edu/wp-content/uploads/2026/06/20260616_THP_BusinessTax_GLP_PP.pdf" }
+                ],
+                "1-2": [
+                    { code: "US-1-2-1", item: "上市公司法定监督", desc: "- 证券最高监管部门：美国证券交易委员会（SEC）对在美募集和挂牌上市的公众公司施加最强信息披露。\\n- 财务列报审计：强制上市公司公开披露经独立注册会计师（CPA）严格审计的高标准财务年报，执行最严真实性责任。", linkText: "Deloitte 并购财务披露路线图", link: "https://dart.deloitte.com/USDART/home/publications/roadmap" }
+                ],
+                "1-3": [
+                    { code: "US-1-3-1", item: "多边防避税双支柱博弈现状", desc: "- 单边倾向加剧：近年来呈现出显著的单边主义和贸易保护主义财税立场。\\n- 第二支柱博弈：拒绝完全跟随经合组织（OECD）的 Pillar Two 规则，主要通过本国防御性税制（如 BEAT、CAMT）保障自身税基不被海外蚕食。", linkText: "Brookings 国际税改前瞻", link: "https://www.brookings.edu/articles/the-future-of-us-international-corporate-tax-reform/" }
+                ],
+                "1-4": [
+                    { code: "US-1-4-1", item: "数字及金融合伙资产监控要求", desc: "- 强化涉税申报：国税局（IRS）加强了对数字资产交易及跨国合伙企业特定份额调整的穿透式税收申报。\\n- 反漏税审查：全面审查 Section 743(b) 的关联调整，旨在打击高净值投资及离岸隐匿资本的逃漏税。", linkText: "Deloitte 所得税会计季度内参", link: "https://www.deloitte.com/us/en/services/tax/articles/accounting-for-income-taxes-quarterly-newsletter.html" }
+                ],
+                "1-5": [
+                    { code: "US-1-5-1", item: "《大美法案》签署与生产折旧红利", desc: "- 大美法案（One, Big, Beautiful Bill Act）：2025 年 7 月 4 日签署 Public Law 119-21 修正案，调整联邦扣免红利。\\n- 100% 生产设备折旧：针对 2025 年 1 月 19 日后购置的合格生产与机械资产，推出首年 100% 满额加速折旧一键扣税。", linkText: "IRS 官方新法案条文解读", link: "https://www.irs.gov/newsroom/one-big-beautiful-bill-provisions" },
+                    { code: "US-1-5-2", item: "2025-2026 优先指南计划发布", desc: "- 2025-2026 优先指南计划：2025 年 8 月财政部与 IRS 发布优先指南计划，总共包含 105 个核心监管大项。\\n- 重点合规项目：聚焦于大美法案过渡期、削减中小企业合规成本、小费/加班费免税细则，以及控制外国公司（CFC）应税所得规则更新。", linkText: "IRS 2025-2026 优先指南蓝本", link: "https://www.irs.gov/pub/irs-counsel/2025-2026-initial-pgp.pdf" }
+                ],
+                "2-1": [
+                    { code: "US-2-1-1", item: "美国公认会计原则 US GAAP 体系", desc: "- 公认会计原则（US GAAP）：美国财务会计准则委员会（FASB）编纂的会计准则法典（ASC）是唯一的非政府权威 GAAP 规范。\\n- ASU 动态更新：FASB 定期发布 ASU 会计准则更新对法典实施增量调整和修正。", linkText: "FASB 会计准则法典专区", link: "https://www.fasb.org/standards" },
+                    { code: "US-2-1-2", item: "所得税财务会计确认准则 (ASC 740)", desc: "- 所得税财务确认（ASC 740）：制定了美国所得税资产、所得税负债和递延部分的财务计量与账面列报标准。\\n- 纳税拨备（Tax Provision）：作为全美企业所得税纳税拨备与资产计算的最高技术路线指导。", linkText: "Deloitte ASC 740 披露路线图", link: "https://dart.deloitte.com/USDART/home/publications/roadmap/income-taxes" }
+                ],
+                "2-2": [
+                    { code: "US-2-2-1", item: "SEC 补充财务列报规则", desc: "- SEC 补充报告条款：在 SEC 注册的公众和拟挂牌企业不仅需符合 GAAP，还必须严格执行 Regulation S-X 中各项极其限制的特定合规列报。\\n- 剥离与合并披露：对资产并购（Rule 3-05）、剥离历史报表（Carve-Out）以及非控股可变利益实体（VIE）合并提出强监管。", linkText: "Deloitte SEC 列报准则路线图", link: "https://dart.deloitte.com/USDART/home/publications/roadmap" }
+                ],
+                "2-3": [
+                    { code: "US-2-3-1", item: "2025 密集型 ASU 生效公告", desc: "- 2025 密集型 ASU 生效：发布 ASU 2025-10《政府补助》（首次规范政府补助的确认）以及 ASU 2025-01《费用分拆》（细化销管特定费用披露）。\\n- 内部软件资产化：通过 ASU 2025-06 规则强化软件内部开发成本的资本化审计门槛。", linkText: "FASB 2025 准则修正列表", link: "https://www.fasb.org/standards/accounting-standard-updates?year=2025" },
+                    { code: "US-2-3-2", item: "SEC 简化规则并入 GAAP 进程", desc: "- 规则并入法典计划：FASB 推进将 14 项源自 SEC 简化的增量信息披露要求直接并入 US GAAP 法典。\\n- 防范双重冲突红线：规定若 SEC 在 2027 年 6 月 30 日前未同步移除 Regulation S-X 对应旧规，该 pending 内容直接废止以防重合冲突。", linkText: "FASB 最近完成项目专区", link: "https://www.fasb.org/page/PageContent?pageId=/projects/recently-completed-projects/disclosure-improvements-in-response-to-the-secs-release-on-disclosure-update-and-simplification.html" }
+                ],
+                "3-1": [
+                    { code: "US-3-1-1", item: "企业所得税率与 Form 1120 呈报", desc: "- 联邦企业税率：法定企业所得税（CIT）固定执行 21% 的扁平化税率。\\n- 跨境往来申报：年度呈交所得税申报表（Form 1120），如属外资全资拥有的美国公司，还强制额外呈报 Form 5472 以穿透关联往来。", linkText: "PwC 美国商业所得税合规指南", link: "https://stripe.com/files/atlas/pwc-tax-guide.pdf" },
+                    { code: "US-3-1-2", item: "大美法案 100% 生产资产折旧冲抵", desc: "- 加速设备更新超级利好：由于 2025 年《大美法案》§ 168(k) 条款，合格在册固定资产获准一键扣税。\\n- 首年 100% 全额冲抵：企业可在报税的首个年度全额注销折旧成本，瞬间大幅拉低当期联邦应税总所得。", linkText: "IRS 加速折旧特别免税指南", link: "https://www.irs.gov/newsroom/one-big-beautiful-bill-provisions" },
+                    { code: "US-3-1-3", item: "超大企业零实际所得税问题", desc: "- 超大盈利实体零联邦税率：标普及财富 500 强中至少有 88 家企业利用加速折旧等红利将 2025 财年所得税实缴额清零。\\n- 纳税大鳄合规抵消：包括特斯拉、西南航空、联合航空等在内的巨头依靠新税法实现了零纳税甚至退税。", linkText: "ITEP 2025 美国企业税收评估", link: "https://itep.org/88-profitable-corporations-paid-zero-income-tax-in-2025/" }
+                ],
+                "3-2": [
+                    { code: "US-3-2-1", item: "DBCFT 及单边保护主义探索", desc: "- 边境调节消费税（DBCFT）：国会与财政部积极探索 destination-based 消费税收调节方案。\\n- 转换征税根基：通过出口免所得税、进口重税将整体所得税基转为消费，保护美国国内的工业基础和就业机会。", linkText: "Hamilton Project 2026商业税改提案", link: "https://www.hamiltonproject.org/wp-content/uploads/2026/06/20260616_THP_BusinessTax_Clausing_PP.pdf" }
+                ],
+                "3-3": [
+                    { code: "US-3-3-1", item: "Side-by-Side 侧边豁免最低税协定", desc: "- 并排安全港协议（Side-by-Side）：2025 年特朗普政府对 Pillar Two 展开严厉反对与贸易制裁威胁后，协定多国于 2026 年初作出妥协。\\n- 豁免跨国补足税：特许美资跨国巨头在特定申报口径下豁免被海外国家 UTPR 补足税机制恶意补征 15% 国内低税，获得重大制度掩体。", linkText: "Grant Thornton 2026 预算评述", link: "https://www.grantthornton.sg/insights/2026-insights/singapore-budget-2026-summary-businesses/" },
+                    { code: "US-3-3-2", item: "2026/2027 企业所得税率上调讨论", desc: "- 上调 CIT 率深度论证：智库深度评估将大企业所得税率重回 27%，并针对利润超 5,000 万美元企业征收 10% 的附加税。\\n- 冲击超高实际税率：若附加税推进落地，超大型企业实际所得税率将冲上 29.7%，未来十年预计创造约 4 万亿美元税款。", linkText: "Brookings 2026 超大企业税制博弈", link: "https://www.brookings.edu/wp-content/uploads/2026/06/20260616_THP_BusinessTax_GLP_PP.pdf" }
+                ]
+            },
+            hk: {
+                name: "香港 (Hong Kong SAR)",
+                "1-1": [
+                    { code: "HK-1-1-1", item: "自由港基本政策属性", desc: "- 自由商港底层属性：长期坚持极其简易、简明的低税率营商环境，对商品进出口推行零关税、零增值税。\\n- 跨国资金无障碍流转：不设任何外汇或资本管制，资金可无障碍出入香港金融体系，金融配套与便利度全球顶尖。", linkText: "Hawksford 香港财税指南", link: "https://www.hawksford.com/insights-and-guides/taxation-and-accounting-in-hong-kong" }
+                ],
+                "1-2": [
+                    { code: "HK-1-2-1", item: "商业登记与 UBI 单一商业代码", desc: "- 合规监管双支柱：香港公司注册处（CR）和税务局（IRD）共同管理企业合规，所有新开业实体必须在 1 个月内获取商业登记证。\\n- 统一商业识别码（UBI）：2023 年 12 月 27 日起全面执行 UBI，采用商业登记号码前八位作为法定代码。", linkText: "香港政府商业及公司登记规程", link: "https://www.gov.hk/en/business/registration/" },
+                    { code: "HK-1-2-2", item: "公司注册处 (CR) 法定申报年报义务", desc: "- NAR1 周年申报要求：依据《公司条例》第 622 章，公司必须在成立周年日后的 42 天内，按期呈交周年申报表。\\n- 秘书与实体要求：强制要求设立本地实体的物理注册地址，并聘请一名持有合格 TCSP 牌照的香港常驻公司秘书。", linkText: "Sleek 香港公司注册与合规手册", link: "https://sleek.com/hk/resources/hk-company-registry/" },
+                    { code: "HK-1-2-3", item: "穿透性公众查询服务", desc: "- 穿透式数字化公众检索：香港公司注册处建立起数字化的 e-Services 平台。\\n- 彻底穿透股权：社会公众及跨国审计机构可实时在线查询任意公司的注册股本、法定董事和重要控制人登记册（SCR）。", linkText: "Emerhub 公司处登记与查询实务", link: "https://emerhub.com/hong-kong/companies-registry-in-hong-kong/" }
+                ],
+                "1-3": [
+                    { code: "HK-1-3-1", item: "多边税收公约 MLI 执行状态", desc: "- MLI 国际反套税生效：香港 2017 年正式签署并加入 OECD 的《多边防避税条约》（MLI）。\\n- CDTA 融合升级：MLI 有关反跨国套税和反关联洗钱条款自 2023/2024 起全面并入香港签署的双边 CDTA 协定。", linkText: "德勤香港财税合规指南", link: "https://wctpa.com/wp-content/uploads/2024/01/deloitte-cn-tax-hk-tax-guide-en-230524.pdf" }
+                ],
+                "1-4": [
+                    { code: "HK-1-4-1", item: "高净值单一家族办公室豁免特许", desc: "- 单一家办免税特许：投资推广署、税务局强力推行针对单一家族办公室（ESF Office）和合格 FIHV 的利得税豁免。\\n- 保障财富流入：通过量身制定的操作手册及税务豁免，吸纳全球高净值财富流入香港特区。", linkText: "EY 香港家族办公室指引", link: "https://www.ey.com/en_cn/newsroom/2026/02/ey-comments-on-hong-kong-budget-2026-27" }
+                ],
+                "1-5": [
+                    { code: "HK-1-5-1", item: "2026-27 财政预算案实现暴涨式盈余", desc: "- 预算案暴涨式盈余：2026-27 年度预算案宣布 2025-26 财年香港盈余达 29 亿港元，成功逆转 670 亿赤字预测。\\n- 黄金商品特定行业减免：预算案对在港设立的黄金及大宗商品交易结算商提供 8.25% 利得税减半特许，并放宽集团重组股份印花税认定门槛。", linkText: "Deloitte 2026香港预算案深度解析", link: "https://www.deloitte.com/cn/en/services/tax/perspectives/ntc-hong-kong-tax-analysis.html" },
+                    { code: "HK-1-5-2", item: "2025-26 财政年度赤字下的预算整顿与印花税放宽", desc: "- 赤字整顿与缩减：面对 2025 年 872 亿港元巨额赤字，推行公务员编制缩减 2%、高管薪酬冻结等收缩政策。\\n- 印花税底线适度放宽：将 ad valorem 从价印花税 100 港元最低征收标准的资产上限提高至 400 万港元以刺激置业需求。", linkText: "EY 2025香港赤字预算案深度解析", link: "https://www.ey.com/en_cn/newsroom/2026/02/ey-comments-on-hong-kong-budget-2026-27" }
+                ],
+                "2-1": [
+                    { code: "HK-2-1-1", item: "香港财务报告准则 HKFRS", desc: "- 香港财务报告准则（HKFRS）：由 HKICPA 颁布，与 IFRS 国际会计准则实现全面、无缝一致。\\n- 适用范围：所有公众公司及上市募集企业强制应用，中型非上市实体符合条件可选用 Private Entities 简化披露。", linkText: "Statrys 香港会计报告标准解析", link: "https://statrys.com/hk/guides/accounting-standards" },
+                    { code: "HK-2-1-2", item: "中小企业简化核算 SME-FRS", desc: "- 中小企业简化框架（SME-FRS）：年营收及资产低于 1 亿港元、员工少于 100 人企业在获得 75% 股东同意后可选用。\\n- 历史成本法核算：允许完全使用历史成本法核算，豁免计提复杂的公允价值重估及递延所得税，显著降解记账成本。", linkText: "China-Briefing 香港会计合规手册", link: "https://www.china-briefing.com/doing-business-guide/hong-kong/taxation-and-accounting/accounting-standards" }
+                ],
+                "2-2": [
+                    { code: "HK-2-2-1", item: "会计及财务汇报局 (AFRC) 行业监管要求", desc: "- AFRC 独立审计监管：香港会计及财务汇报局依法拥有对全港执业 CPA、PIE 审计师实施执业质检和质量管理（QA）的最高权力。\\n- 重罚不合规审计：AFRC 可依法对行业舞弊会计师施以巨额行政处罚和 practice limitation 资格罚。", linkText: "AFRC 官方主页与公告专区", link: "https://www.afrc.org.hk/" },
+                    { code: "HK-2-2-2", item: "原始账册 7 年法定保留时效", desc: "- 原始凭证法定留存：依据《公司条例》第 622 章规定，凡在港在册实体法定必须保留完整、详实反映日常交易的账薄及票据。\\n- 7 年法定保留红线：该类凭证及会计账目保存时限必须在 7 年以上，未能遵从的董事将面临 300,000 港元罚款及刑事责任。", linkText: "Aspire-App 香港财务规则大纲", link: "https://aspireapp.com/hk/blog/hkfrs-explained" }
+                ],
+                "2-3": [
+                    { code: "HK-2-3-1", item: "大企业所得税 e-Filing 强制数字报送", desc: "- MNE 大企业 e-Filing 强制：自 2025/26 课税年度起，凡属跨国大企业（年营收超 7.5 亿欧元）旗下在港实体强制电子报税。\\n- BTP 与 iXBRL 数字申报：强制通过 IRD 上线的商业税务门户使用 iXBRL 格式在线申报，2030 年起向全行业强制化推进。", linkText: "KPMG 2025/26 强制电子报税指南", link: "https://assets.kpmg.com/content/dam/kpmgsites/cn/pdf/en/2026/04/tax-alert-06-hk-a-quick-guide-to-the-2025-2026-hk-profits-tax-filing.pdf.coredownload.inline.pdf" }
+                ],
+                "3-1": [
+                    { code: "HK-3-1-1", item: "两级制利得税与属地免税机制", desc: "- 两级利得税政策：法定所得税率为 16.5%，符合指定条件的单一实体，其首 200 万港元应税利润减半征收（8.25% 优惠税率）。\\n- 属地免税与资本免税：地域来源原则下，仅对源自香港的本地利润课税，资本利得、离岸 profits 以及股息分红不纳税。", linkText: "Ascentium 香港公司税筹划指引", link: "https://www.ascentium.com/hong-kong/insights/hong-kong-corporate-tax-guide-2025-rates-benefits-and-planning-strategies" },
+                    { code: "HK-3-1-2", item: "离岸所得豁免 (FSIE) 反避税机制", desc: "- 离岸外国收入豁免（FSIE）：2023 年起分步实施严苛的 FSIE 反避税法，对被动收入（股息、利息等）进行约束。\\n- headcount 与实质测试：若企业未能在本地满足合格最低 headcount 及经营实质测试，其离岸被动收入将被转回征收利得税。", linkText: "PwC 香港所得税法定规则", link: "https://taxsummaries.pwc.com/hong-kong-sar/corporate/taxes-on-corporate-income" },
+                    { code: "HK-3-1-3", item: "科研制造业固定资产 100% 折旧冲抵", desc: "- 特定固定资产 super 折旧：购买计算机硬件、环保设备以及科研制造特定工业固定设备，可在首个纳税年度 100% 一键全额税前注销折旧。\\n- 研发加计扣除加码：对符合条件的本地研发支出提供高达 200% 至 300% 的阶梯式税前超额研发折旧扣免特许。", linkText: "PwC 香港所得税操作手册", link: "https://www.pwchk.com/en/services/tax/hong-kong-corporate-tax.html" }
+                ],
+                "3-2": [
+                    { code: "HK-3-2-1", item: "双边税收协定 (CDTA) 免税优势", desc: "- CDTA 税收协定：已同全球超过 40 个主要国家和多边贸易体建立起了全面的 CDTA 税收协定网络。\\n- 预提税减免特许：依托协定极大降低跨国利息、特许权使用费的预提税，分派至境外的股息完全免除代扣代缴。", linkText: "IRD 双边税收协定专区", link: "https://www.ird.gov.hk/eng/tax/budget2025.htm" }
+                ],
+                "3-3": [
+                    { code: "HK-3-3-1", item: "关联公司间 IP 资本支出扣减重磅放宽", desc: "- 关联公司 IP 资本支出：2026 年 5 月向立法会提交修改提案，自 2026 年 4 月 1 日起全面放宽无形资产购置成本的税前利润抵扣。\\n- 知识产权折旧扣税：在满足非逃避税主要目的测试后，全面允许对从关联方购置的专利、商标等资本性支出进行利得税扣除。\\n- FSIE 购置成本抵扣：已被纳入 FSIE 征税范围内的境外无形资产处置利益，允许按比例对购置 IP 发生的资本申报折旧扣减。", linkText: "Tax-at-Hand 2026香港IP税改追踪", link: "https://www.taxathand.com/article/41321/Hong-Kong-SAR/2026/Updated-proposals-for-tax-deductions-for-capital-expenditure-related-to-IP-released" },
+                    { code: "HK-3-3-2", item: "2026-27 预算案新行业减税与重组印花税豁免", desc: "- 2026-27 行业所得税减免：对在港符合特定条件的黄金交易商、大宗商品交易结算商提供利得税减半政策。\\n- 集团内部重组印花税减负：进一步降低关联实体在集团重组时面临的股份转让印花税及对应资料证明门槛。", linkText: "EY 香港 2026 预算案商业税评", link: "https://www.ey.com/en_cn/newsroom/2026/02/ey-comments-on-hong-kong-budget-2026-27" }
+                ]
+            },
+            dk: {
+                name: "丹麦 (Denmark)",
+                "1-1": [
+                    { code: "DK-1-1-1", item: "高福利高税收绿色经济体制", desc: "- 北欧高福利、高税收绿色体系：全球风电能源、生命科学、海运集运领域的龙头。\\n- 零资金利润汇兑限制：资本流动高度自由，且重视国际自由贸易及低碳环保，跨国大企业需背负高额福利税负分摊。", linkText: "PwC 丹麦投资与宏观环境综述", link: "https://taxsummaries.pwc.com/denmark" }
+                ],
+                "1-2": [
+                    { code: "DK-1-2-1", item: "丹麦商业局 CVR.dk 信息公开系统", desc: "- 唯一中央商业登记门户（CVR.dk）：由丹麦商业局（Erhvervsstyrelsen）直接维护并作为官方唯一的企业信息门户。\\n- 30 年历史年报免费公开：免费支持穿透式检索和下载近 30 年任意存续或已注销公司的年度审计财报、股权架构与核心所有权流转。", linkText: "Copenhagen Business School CVR专区", link: "https://www.cbs.dk/en/library/search-library/online-resources/cvrdk" },
+                    { code: "DK-1-2-2", item: "丹麦商业局 (Erhvervsstyrelsen) 官方职责", desc: "- 丹麦商业局（Erhvervsstyrelsen）核心职责：负责推进全丹合规设立及绿色低碳运行。\\n- 初创与 R&D 支持：为跨国投资者在丹麦设立风电、生命科学研发中心提供一站式（One Stop Shop） coordinated 行政协调服务。", linkText: "Erhvervsstyrelsen 官方职能大纲", link: "https://danishbusinessauthority.dk/about-the-danish-business-authority" }
+                ],
+                "1-3": [
+                    { code: "DK-1-3-1", item: "欧盟单一市场自贸机制", desc: "- 欧盟单一市场自贸网络：作为欧盟成员国，商业局下设欧盟单一市场办公室（Single Market Office）。\\n- 消除欧盟跨境壁垒：全力监督并落实人员、资本、商品、服务在欧盟 27 个成员国之间的跨境零关税、零行政障碍流动。", linkText: "Danish Business Authority 欧盟事务专区", link: "https://danishbusinessauthority.dk/single-market-office" }
+                ],
+                "1-4": [
+                    { code: "DK-1-4-1", item: "碳交易登记簿管理", desc: "- 碳中和配额登记：商业局负责运营管理丹麦国家碳排放交易登记簿（Danish Emission Trading Registry）。\\n- 重度排污强制核算：强制对涉重排污跨国制造厂实施碳配额在线统计、审查划转，监督企业达成丹麦宏伟的绿色低碳减排目标。", linkText: "丹麦排放登记处官方业务指引", link: "https://danishbusinessauthority.dk/support" }
+                ],
+                "1-5": [
+                    { code: "DK-1-5-1", item: "2026 历史性个税三轨制大税改生效", desc: "- 历史性个税三轨制生效：自 2026 年 1 月 1 日起，丹麦全面施行个税改革。\\n- 边际税率重组：废除原单一顶级税起征线，重塑为“中产税（7.5%）、顶级税（7.5%）和顶顶级税（5%）”，使高收入个人的边际个税率（含AM劳工税）冲上 60.5% 的历史最高峰。", linkText: "Expat-Finance 2026丹麦个税重组评述", link: "https://expatfinance.dk/taxes/the-2026-expat-tax-guide/" },
+                    { code: "DK-1-5-2", item: "研究学者及跨国高管个税准入门槛降低", desc: "- 外籍科研学者月薪门槛降低：为减缓 60.5% 边际税率导致的科技和高管流失，2026 年下调了“研究人员特许税收计划”（Researcher Tax Scheme）准入门槛。\\n- 高管月薪门槛放宽：准入月薪由 DKK 75,100 大幅下调至 DKK 60,100，使其可在 7 年内享受 27%（实际含AM税为 32.84%）的优惠扁平税率。", linkText: "BDO 丹麦增长与创新税改公告", link: "https://www.bdo.global/en-gb/insights/tax/world-wide-tax/denmark-new-tax-legislation-introduced-for-growth-and-innovation" }
+                ],
+                "2-1": [
+                    { code: "DK-2-1-1", item: "《丹麦财务报告法》企业会计分类规范", desc: "- 财务报告法等级划分：依据《丹麦财务报告法》将商业实体划分 A、B、C、D 四个报告层级。\\n- 上市公司强制 IFRS：属于 Class D 级别的所有丹麦上市公司强制执行 IFRS，Class B/C 非上市中小型实体可在 DK GAAP 和 IFRS 间自由选择。", linkText: "Crowe 丹麦商业与报告合规指南", link: "https://www.crowe.com/dk/en-us/-/media/crowe/firms/europe/dk/crowehorwathdk/files/nyheds-filer-pdf/puplikationer---pdf/doing-business-in-denmark-2024---crowe.pdf?rev=-1&hash=0D752775017EBD7FDC21E147260DB265" },
+                    { code: "DK-2-1-2", item: "年度报告强制性 inline XBRL (iXBRL) 数字格式", desc: "- 财务报告强制数字格式：根据商业局发布的最新强制性法令。\\n- 2025 统一数字格式 iXBRL：自 2025 年 1 月 1 日起或之后开始的财务年度，所有需要向商业局提交年报的丹麦实体，一律强制采用 inline XBRL（iXBRL）标准数字格式。", linkText: "ParsePort 丹麦 GAAP 数字化呈报", link: "https://parseport.com/resources/dk-gaap/" }
+                ],
+                "2-2": [
+                    { code: "DK-2-2-1", item: "新《簿记法》（Danish Bookkeeping Act）重大变更", desc: "- 新《簿记法》（Danish Bookkeeping Act）：对在册企业施加强制性数字化簿记管理。\\n- 数字化记账系统预审：自 2025 年起（部分微型企业于 2026 年），凡营收额超 300,000 克朗的企业，强制采购并使用商业局备案的标准数字化记账软件。\\n- 支持电子发票与 SAF-T：记账软件必须原生支持电子发票（E-invoices）接收及 SAF-T 凭证的一键输出。", linkText: "KPMG 丹麦数字记账法执行细则", link: "https://kpmg.com/dk/en/insights/vat-and-customs/digital-bookkeeping-requirements-in-denmark.html" },
+                    { code: "DK-2-2-2", item: "云端记账数据欧盟备份强制令", desc: "- 记账数据安全与留存：交易记账数据和原始凭证法定妥善保存至少 5 年以上。\\n- 云备份物理地址红线：若使用云端记账，其数据物理服务器的物理备份必须存放在欧盟（EU）领土以内。", linkText: "BDO 丹麦最新数字化簿记法白皮书", link: "https://www.bdo.dk/getattachment/4098a390-24bb-4f07-b122-514e87227b81/Viden_2025-02-27_opdateret-udgave-BDO_Bogf%C3%B8ringsloven__ENG.pdf" }
+                ],
+                "2-3": [
+                    { code: "DK-2-3-1", item: "Class B 小型公司法定审计门槛划分", desc: "- Class B 小型公司审计豁免：符合 Class B 小型标准企业（如全职员工低于 50 人、营收低于 1.11 亿克朗、资产低于 5,500 万克朗）在特定条件下可选择免予法定外部审计。\\n- 连续两年超标必审：若公司规模连续两年超标，则法定强制接受具有国家资质的注册会计师（CPA）年度审计。", linkText: "Uniqorm 丹麦年度财务合规手册", link: "https://uniqorm.com/annual-reporting-requirements-limited-companies-danmark" }
+                ],
+                "3-1": [
+                    { code: "DK-3-1-1", item: "公司所得税法定率与预缴时间表", desc: "- 通用企业所得税率：丹麦公司的通用企业所得税（CIT）法定税率为 22%。\\n- 强制分季预缴时限：税款强制分两次预缴（每年的 3 月 20 日和 11 月 20 日），当年漏缴或年度结算补缴的，将被加征 6.6% 的高额附加罚息。", linkText: "PwC 丹麦商业纳税与预缴流程指南", link: "https://taxsummaries.pwc.com/denmark/corporate/tax-administration" },
+                    { code: "DK-3-1-2", item: "海外常设机构 (PE) 的属地完全免税特许", desc: "- 海外常设机构属地完全免税：丹麦税法执行高度属地征税原则。\\n- 排除海外 PE 所得：丹麦实体在海外（如东盟）设立并存续的永久性常设代表机构（PE）和海外不动产处置收益，通常直接被排除在丹麦所得税课税范围外。", linkText: "PwC 丹麦企业所得税速览", link: "https://taxsummaries.pwc.com/denmark/corporate/taxes-on-corporate-income" },
+                    { code: "DK-3-1-3", item: "合格研发 (R&D) 亏损现金退回与超级成本冲抵", desc: "- R&D 亏损现金提取红利：2025-2026 年度内，若企业因为大量 R&D 产生纳税亏损，可直接向税务局申请将亏损折现退还。\\n- 科研亏损折现上限：返现折现上限达 550 万克朗（2027年起将上调至 770 万克朗），且合格 R&D 支出可在 2026 年享受高达 114% 的超级税前扣除，未来将调升至 120%。", linkText: "Deloitte 丹麦研发税收抵免成功指南", link: "https://www.deloitte.com/dk/en/services/tax/perspectives/guide-to-a-successful-tax-credit.html" },
+                    { code: "DK-3-1-4", item: "未上市中小投资股息免税利好", desc: "- 组合股权未上市股息免税：自 2025 年 1 月 1 日起，持股比例低于 10% 的“未上市组合普通股权（Unlisted Portfolio Shares）”股息分红免税。\\n- 天使投资超级红利：该特定股息在丹麦本地全面免税，以鼓励跨国风投和天使资金注入丹麦中小创新科技板块。", linkText: "BDO 丹麦公司税法重磅重组解读", link: "https://www.bdo.global/en-gb/insights/tax/world-wide-tax/denmark-new-tax-legislation-introduced-for-growth-and-innovation" }
+                ],
+                "3-2": [
+                    { code: "DK-3-2-1", item: "双边税收协定网络与非居民预提税", desc: "- 综合税收协定网络：丹麦税务局构建了覆盖 70 多个国家的双边避免双重征税（DTA）网络。\\n- 代扣预提税免征特许：虽然非居民预提税率法定上限为 22%，但依托避免双重征税协议（DTA）以及欧盟母子公司指令，绝大多数控股跨国实体可被削减至 0%。", linkText: "Commenda 丹麦企业预提税核心指南", link: "https://www.commenda.io/denmark/corporate-tax-rates" }
+                ],
+                "3-3": [
+                    { code: "DK-3-3-1", item: "最低税法案修改与防混合工具避税防线", desc: "- Pillar Two 15% 最低税法案：已于 2023 年底将第二支柱 15% 最低税规则纳入国内法。\\n- 混合套避税阻断修正：2024 年 6 月 4 日紧急通过《最低税法修正案》，对“过渡期国别报告安全港”设置强力混合避税阻断机制，严禁通过关联混合工具安排侵蚀 DTT 税款。", linkText: "PwC 丹麦二支柱最低税最新立法", link: "https://taxsummaries.pwc.com/denmark/corporate/taxes-on-corporate-income" },
+                    { code: "DK-3-3-2", item: "执政联盟联合协议：未来三年公司税大降至 19%", desc: "- 执政联盟最新减税联合协议：丹麦拟在未来三年内，将通用企业所得税率（CIT）在现行 22% 基础之上削减 3 个百分点。\\n- 公司所得税降至 19%：所得税率将降至 19% 的全欧历史低位，以极大增强其投资竞争力，但金融行业被排除在此项降税外。", linkText: "Schjodt 丹麦联合协定税务动向评级", link: "https://schjodt.com/news/a-new-tax-landscape-key-takeaways-from-denmarks-2026-coalition-agreement" }
+                ]
+            }
+        };
+
+        // 状态变量（优先从本地 LocalStorage 读取以保持状态）
+        let currentCountry = localStorage.getItem('currentCountry') || 'sg';
+        let currentCategory = localStorage.getItem('currentCategory') || '1-1';
+        let comparisonMode = localStorage.getItem('comparisonMode') === 'true';
+        let sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+        
+        let sortField = null;
+        let sortAsc = true;
+        let searchQuery = '';
+
+        function switchCountry(countryCode) {
+            currentCountry = countryCode;
+            localStorage.setItem('currentCountry', countryCode);
+            ['sg', 'us', 'hk', 'dk'].forEach(code => {
+                const btn = document.getElementById(`btn-${code}`);
+                if (code === countryCode) {
+                    btn.className = "px-5 py-2 rounded text-sm font-semibold transition-all duration-150 tab-active";
+                } else {
+                    btn.className = "px-5 py-2 rounded text-sm font-semibold transition-all duration-150 bg-slate-100 text-slate-700 hover:bg-slate-200";
+                }
+            });
+            renderGrid();
+        }
+
+        function selectCategory(catId) {
+            currentCategory = catId;
+            localStorage.setItem('currentCategory', catId);
+            document.querySelectorAll("[id^='cat-']").forEach(btn => {
+                if (btn.id === `cat-${catId}`) {
+                    btn.className = "w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-teal-800 font-medium bg-teal-50";
+                } else {
+                    btn.className = "w-full text-left text-xs px-3 py-1.5 rounded transition-colors text-slate-600 hover:bg-slate-50";
+                }
+            });
+            renderGrid();
+        }
+
+        function toggleSidebar() {
+            sidebarCollapsed = !sidebarCollapsed;
+            localStorage.setItem('sidebarCollapsed', sidebarCollapsed);
+            renderSidebarState();
+        }
+
+        function renderSidebarState() {
+            const sidebar = document.getElementById('sidebar-container');
+            const mainContent = document.getElementById('main-content-container');
+            const toggleIcon = document.getElementById('sidebar-toggle-icon');
+            if (sidebarCollapsed) {
+                sidebar.classList.add('hidden');
+                mainContent.classList.remove('lg:col-span-3');
+                mainContent.classList.add('lg:col-span-4');
+                toggleIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />`; // 展开图标
+            } else {
+                sidebar.classList.remove('hidden');
+                mainContent.classList.remove('lg:col-span-4');
+                mainContent.classList.add('lg:col-span-3');
+                toggleIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />`; // 折叠图标
+            }
+        }
+
+        function toggleComparisonMode() {
+            comparisonMode = !comparisonMode;
+            localStorage.setItem('comparisonMode', comparisonMode);
+            const btn = document.getElementById('btn-compare');
+            const countryTabs = document.getElementById('country-tabs-container');
+            
+            if (comparisonMode) {
+                btn.className = "px-5 py-2 rounded text-sm font-semibold transition-all duration-150 tab-active flex items-center gap-1.5";
+                countryTabs.classList.add('opacity-50', 'pointer-events-none');
+            } else {
+                btn.className = "px-5 py-2 rounded text-sm font-semibold transition-all duration-150 bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5";
+                countryTabs.classList.remove('opacity-50', 'pointer-events-none');
+            }
+            renderGrid();
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('search-input').value.toLowerCase();
+            renderGrid();
+        }
+
+        function handleSort(field) {
+            if (sortField === field) {
+                sortAsc = !sortAsc;
+            } else {
+                sortField = field;
+                sortAsc = true;
+            }
+            renderGrid();
+        }
+
+        // 核心渲染辅助：将 \n- 分割的纯文本转换为高级无序列表 (Bullet Points) HTML 呈现
+        function formatDesc(desc) {
+            if (!desc) return '';
+            const lines = desc.split(/\r?\n|\\n/).map(line => line.trim()).filter(line => line.length > 0);
+            if (lines.length > 0) {
+                let html = '<ul class="list-disc pl-4 space-y-1.5 text-xs text-slate-700 leading-relaxed">';
+                lines.forEach(line => {
+                    const cleanLine = line.replace(/^[-•*]\s*/, '');
+                    html += `<li>${cleanLine}</li>`;
+                });
+                html += '</ul>';
+                return html;
+            }
+            return desc;
+        }
+
+        // 条件格式检测逻辑：自动识别包含最新年份及政策变动核心词
+        function isNewPolicy(desc, item) {
+            const pattern = /2025|2026|2027|变动|改革|新税|新法|大降/;
+            return pattern.test(desc) || pattern.test(item);
+        }
+
+        function processItems(items) {
+            let processed = [...items];
+            if (searchQuery.trim() !== '') {
+                processed = processed.filter(row => 
+                    row.code.toLowerCase().includes(searchQuery) ||
+                    row.item.toLowerCase().includes(searchQuery) ||
+                    row.desc.toLowerCase().includes(searchQuery)
+                );
+            }
+            if (sortField) {
+                processed.sort((a, b) => {
+                    let valA = a[sortField] || '';
+                    let valB = b[sortField] || '';
+                    return sortAsc ? valA.localeCompare(valB, 'zh') : valB.localeCompare(valA, 'zh');
+                });
+            }
+            return processed;
+        }
+
+        function renderGrid() {
+            const catName = document.getElementById(`cat-${currentCategory}`).innerText;
+            const tableEl = document.getElementById("standard-table");
+            const compEl = document.getElementById("comparison-view");
+
+            if (comparisonMode) {
+                // 进入横向对比模式
+                tableEl.classList.add('hidden');
+                compEl.classList.remove('hidden');
+                document.getElementById("formula-bar").innerText = `横向对比所有法域 > ${catName}`;
+                document.getElementById("cell-indicator").innerText = `ALL`;
+                
+                compEl.innerHTML = "";
+                const countries = [
+                    { key: 'sg', name: '新加坡 (Singapore)', color: 'border-teal-600', headerBg: 'bg-teal-800' },
+                    { key: 'us', name: '美国 (United States)', color: 'border-blue-600', headerBg: 'bg-blue-800' },
+                    { key: 'hk', name: '香港 (Hong Kong SAR)', color: 'border-purple-600', headerBg: 'bg-purple-800' },
+                    { key: 'dk', name: '丹麦 (Denmark)', color: 'border-rose-600', headerBg: 'bg-rose-800' }
+                ];
+
+                countries.forEach(c => {
+                    const countryItems = database[c.key][currentCategory] || [];
+                    const filteredItems = processItems(countryItems);
+                    
+                    let colHtml = `
+                        <div class="flex flex-col gap-3 min-w-[240px] bg-slate-100/50 p-2 rounded-lg border border-slate-200">
+                            <div class="${c.headerBg} text-white font-bold p-2 text-center rounded shadow-sm text-xs sticky top-0 z-10">
+                                ${c.name}
+                            </div>
+                            <div class="flex flex-col gap-3 overflow-y-auto max-h-[500px] pr-1">
+                    `;
+
+                    if (filteredItems.length === 0) {
+                        colHtml += `<div class="text-center text-slate-400 text-xs py-10 bg-white rounded border border-slate-200">无匹配合规数据</div>`;
+                    } else {
+                        filteredItems.forEach(row => {
+                            const isNew = isNewPolicy(row.desc, row.item);
+                            const cardBg = isNew ? "bg-amber-50/50 border-amber-300" : "bg-white border-slate-200";
+                            const badge = isNew ? `<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-1 py-0.5 rounded border border-amber-200 animate-pulse">● 变动</span>` : '';
+                            
+                            colHtml += `
+                                <div class="${cardBg} border-l-4 ${c.color} p-3 rounded shadow-sm hover:shadow-md transition-all">
+                                    <div class="flex justify-between items-center gap-1.5 mb-2">
+                                        <span class="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-1.5 py-0.5 rounded">${row.code}</span>
+                                        <div class="flex items-center gap-1">
+                                            ${badge}
+                                            <button onclick="copyToClipboard('${row.code}', '${row.item}', '${row.desc.replace(/'/g, "\\'")}', '${row.link}')" class="p-1 hover:bg-slate-100 rounded text-slate-500" title="复制并分享此政策">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742l1.99 1.99a1 1 0 003.018-1.04l1.518-1.517a3 3 0 10-4.243-4.243L9.43 7.452a3 3 0 004.243 4.243m0 0L9 15"></path></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <h4 class="font-bold text-xs text-slate-900 mb-1">${row.item}</h4>
+                                    <div class="mb-2 leading-relaxed">${formatDesc(row.desc)}</div>
+                                    <div class="pt-2 border-t border-slate-100 flex justify-between items-center">
+                                        <a href="${row.link}" target="_blank" class="text-teal-700 hover:text-teal-800 font-bold text-[10px] inline-flex items-center gap-0.5">
+                                            <span>原始文献</span>
+                                            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+
+                    colHtml += `</div></div>`;
+                    compEl.innerHTML += colHtml;
+                });
+
+            } else {
+                // 正常单国表格模式
+                tableEl.classList.remove('hidden');
+                compEl.classList.add('hidden');
+                
+                const countryData = database[currentCountry];
+                document.getElementById("formula-bar").innerText = `${countryData.name} > ${catName}`;
+                document.getElementById("cell-indicator").innerText = `A2`;
+
+                // 更新排序表头角标
+                document.getElementById('sort-icon-code').innerText = sortField === 'code' ? (sortAsc ? ' ▲' : ' ▼') : '';
+                document.getElementById('sort-icon-item').innerText = sortField === 'item' ? (sortAsc ? ' ▲' : ' ▼') : '';
+
+                const rawList = countryData[currentCategory] || [];
+                const dataList = processItems(rawList);
+                const tbody = document.getElementById("excel-data-rows");
+                tbody.innerHTML = "";
+
+                if (dataList.length === 0) {
+                    tbody.innerHTML = `
+                        <tr class="hover:bg-slate-50">
+                            <td class="excel-row-num">2</td>
+                            <td class="p-4 text-center font-mono text-slate-400">-</td>
+                            <td class="p-4 font-semibold text-slate-400">暂无匹配合规数据</td>
+                            <td class="p-4 text-slate-400">在该检索条件和分类下暂无特定官方合规文献记录。</td>
+                            <td class="p-4 text-center text-slate-400">-</td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                dataList.forEach((row, index) => {
+                    const rowNum = index + 2;
+                    const isNew = isNewPolicy(row.desc, row.item);
+                    
+                    // 条件格式高亮底纹及动画脉冲徽章
+                    const rowBgClass = isNew ? "bg-amber-50/40 hover:bg-amber-100/40 border-b border-slate-200 transition-colors" : "hover:bg-teal-50/20 border-b border-slate-200 transition-colors";
+                    const badgeHtml = isNew ? `<span class="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 mr-1.5 animate-pulse">● 变动</span>` : '';
+
+                    tbody.innerHTML += `
+                        <tr class="${rowBgClass}">
+                            <td class="excel-row-num">${rowNum}</td>
+                            <td class="p-3 text-center font-mono font-semibold text-teal-700">${row.code}</td>
+                            <td class="p-3 font-semibold text-slate-950 align-top">
+                                <div class="flex items-center">
+                                    ${badgeHtml}
+                                    <span>${row.item}</span>
+                                </div>
+                            </td>
+                            <td class="p-3 align-top leading-relaxed">${formatDesc(row.desc)}</td>
+                            <td class="p-3 text-center align-top">
+                                <div class="flex items-center justify-center gap-2">
+                                    <a href="${row.link}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 text-teal-700 hover:bg-teal-100 font-bold text-xs rounded border border-teal-200 transition-all duration-150">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                        <span>原始文献</span>
+                                    </a>
+                                    <button onclick="copyToClipboard('${row.code}', '${row.item}', '${row.desc.replace(/'/g, "\\'")}', '${row.link}')" class="p-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded border border-slate-300 text-xs font-semibold flex items-center gap-1" title="一键格式化复制，便于邮件或即时聊天分享">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742l1.99 1.99a1 1 0 003.018-1.04l1.518-1.517a3 3 0 10-4.243-4.243L9.43 7.452a3 3 0 004.243 4.243m0 0L9 15"></path></svg>
+                                        <span>分享</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        // 便捷分享与一键复制功能 (自动去除换行中的 markdown 标识)
+        function copyToClipboard(code, item, desc, link) {
+            const cleanDescText = desc.replace(/\\n-/g, '\n-').replace(/\\n/g, '\n');
+            const shareText = `【政策合规检索】\n代码：${code}\n科目：${item}\n实务内容：\n${cleanDescText}\n原始出处：${link}`;
+            navigator.clipboard.writeText(shareText).then(() => {
+                showToast("✅ 已成功复制该条政策描述及链接，可直接粘贴分享！");
+            }).catch(err => {
+                console.error("复制失败: ", err);
+                showToast("❌ 复制失败，请手动选择复制。");
+            });
+        }
+
+        // 吐司通知弹窗
+        function showToast(message) {
+            let toast = document.createElement('div');
+            toast.className = "fixed bottom-5 right-5 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-lg shadow-lg z-50 transition-all duration-300 opacity-0 transform translate-y-2 font-semibold";
+            toast.innerText = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('opacity-0', 'translate-y-2');
+                toast.classList.add('opacity-100', 'translate-y-0');
+            }, 50);
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
+        }
+
+        // 导出 CSV 功能（无缝对接日常财务 Excel 表格）
+        function exportToCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,\ufeff"; // 注入 BOM 解决 Excel 中文乱码问题
+            const catName = document.getElementById(`cat-${currentCategory}`).innerText;
+
+            if (comparisonMode) {
+                csvContent += `横向多国对比报表 - 政策科目: ${catName}\n\n`;
+                csvContent += "法域,代码,政策科目,合规性描述与核心实务摘要,官方链接\n";
+                ['sg', 'us', 'hk', 'dk'].forEach(countryKey => {
+                    const countryName = database[countryKey].name;
+                    const items = database[countryKey][currentCategory] || [];
+                    const filtered = processItems(items);
+                    filtered.forEach(row => {
+                        let cleanDesc = row.desc.replace(/"/g, '""').replace(/\\n/g, '\n');
+                        csvContent += `"${countryName}","${row.code}","${row.item}","${cleanDesc}","${row.link}"\n`;
+                    });
+                });
+            } else {
+                const countryName = database[currentCountry].name;
+                csvContent += `${countryName} 单国财税报表 - 政策科目: ${catName}\n\n`;
+                csvContent += "代码,政策科目,合规性描述与核心实务摘要,官方链接\n";
+                const items = database[currentCountry][currentCategory] || [];
+                const filtered = processItems(items);
+                filtered.forEach(row => {
+                    let cleanDesc = row.desc.replace(/"/g, '""').replace(/\\n/g, '\n');
+                    csvContent += `"${row.code}","${row.item}","${cleanDesc}","${row.link}"\n`;
+                });
+            }
+
+            const encodedUri = encodeURI(csvContent);
+            const downloadLink = document.createElement("a");
+            downloadLink.setAttribute("href", encodedUri);
+            const filename = comparisonMode ? `四国合规对比_${catName}.csv` : `${database[currentCountry].name}_${catName}.csv`;
+            downloadLink.setAttribute("download", filename);
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        window.onload = function() {
+            // 初始化及自适应状态恢复
+            renderSidebarState();
+            selectCategory(currentCategory);
+            switchCountry(currentCountry);
+
+            const btn = document.getElementById('btn-compare');
+            const countryTabs = document.getElementById('country-tabs-container');
+            if (comparisonMode) {
+                btn.className = "px-5 py-2 rounded text-sm font-semibold transition-all duration-150 tab-active flex items-center gap-1.5";
+                countryTabs.classList.add('opacity-50', 'pointer-events-none');
+            } else {
+                btn.className = "px-5 py-2 rounded text-sm font-semibold transition-all duration-150 bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5";
+                countryTabs.classList.remove('opacity-50', 'pointer-events-none');
+            }
+
+            renderGrid();
+        };
+    </script>
+</body>
+</html>
